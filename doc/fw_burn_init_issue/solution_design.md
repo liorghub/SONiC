@@ -2,9 +2,15 @@
 # Overview
 - We have an issue in init flow when FW burn takes place.
 - We can see below that SWSS Orchagent tries to configure Syncd while FW burn takes place.
+
 ![fw_burn_init_issue](issue_description.svg "Figure 1")
+
+__Figure 1: Issue description__
+
 - Since the flow is valid the decision we took is to increase the timeout for Orchagent SAI Redis calls.
+
 ![fw_burn_init_issue](issue_solution.svg "Figure 2")
+__Figure 2: Issue solved__
 
 # High-Level Design
 - We will set the timeout of SAI Redis calls in Orchagent init flow.
