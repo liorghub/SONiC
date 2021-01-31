@@ -15,11 +15,9 @@ __Figure 2: After the fix__
 
 # High-Level Design
 - We will set the timeout of SAI Redis calls in Orchagent init flow.
-- Timeout value determined by system type.
-- We have 2 system types, with and without Gearbox.
-- In systems without Gearbox, FW burn takes ~2 min -> set timeout to 150 seconds
-- In systems with Gearbox, FW burn takes ~7 min -> set timeout to 480 seconds
-- See below table with time measurements
+- Timeout will be set to 480 seconds.
+- Timeout will be set back to default (60 seconds) right after the call to SAI_REDIS_SWITCH_ATTR_NOTIFY_SYNCD since if we got response from Syncd we can know for sure it is up.
+- Why 480 secondes? FW burn might take up to 7 minutes in systems with Gearbox, see below table with time measurements.
 
 |Operation|SPC1|SPC2|SPC3|SPC2 with Gearbox
 |--|--|--|--|--|
@@ -31,4 +29,4 @@ __Figure 2: After the fix__
 # API
 - This API allows us to set the timeout for SAI Redis API calls.
 - Identifier: SAI_REDIS_SWITCH_ATTR_GET_RESPONSE_TIMEOUT_MS
-- Value: determined by system type.
+- Value: 480 sec
