@@ -20,6 +20,7 @@
     - [3.1.4 SWSS COPP](#314-swss-copp)
   - [3.2 ZTP provision over in-band network on runtime](#32-ZTP-provision-over-in-band-network-on-runtime)
   - [3.3 Config DB](#33-config-db)
+  - [3.4 CLI commands](#34-cli-commands)
 
 
 # Revision
@@ -112,16 +113,17 @@ ZTP service perform the following:
 5. Simple provisioning script downloaded using URL specified in DHCPv6 Option-239.
 6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively.
 
-- Process the configuration sections appear in ZTP json. Each section contains plugin to execute. There are several plugin types:
+- Process the configuration sections appear in ZTP json. Each section contains plugin to execute. There are several types of plugins:
 1. configdb-json - the plugin is used to download config DB json file and apply it. A config reload is performed during which various SWSS services may restart.
 2. firmware - this plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic_installer utility is used by this plugin to perform the supported functions.
 3. connectivity-check - this plugin is used to ping a remote host and verify if the switch is able to reach the remote host.
 4. snmp - this plugin is used to configure SNMP community string on SONiC switch.
+5. script - this plugin is used to simply run a user script.
 
 In the below example, there are 3 sections to process:
 ```
 {
-  "ztp": {
+	"ztp": {
 		"01-configdb-json": {
 			"url": {
 				"source": "http://192.168.0.1/ZTP/config_db.json",
@@ -205,18 +207,67 @@ In this scenario, ztp-engine performs the following:
 1. Verify all ZTP sub features (inband, ipv4, ipv6) are enabled in config DB. If not, create config_db.json and ztp_dhcp.json (same as config-setup does on init) and perfrom config reload to load the newly created config_db.json.
 2. Rest of the flow is as described in [3.1.3 ZTP service](#313-ztp-service)
 
-## 3.3 config DB
-If ZTP is enabled, the following will be added to config DB at init and will be deleted once ZTP will finish to process all configuration sections in the ZTP json.
+## 3.3 Config DB
+When ZTP is enabled, the following will be added to config DB at init and will be deleted once ZTP will finish its operation.
 ```
 "ZTP" : {
   "mode" : {
-  "profile" : "active",
-  "inband" : "true",
-  "out-of-band" : "true",
-  "ipv4" : "true",
-  "ipv6" : "true",
-  "product-name" : "",
-  "serial-no" : ""
+    "profile" : "active",
+    "inband" : "true",
+    "out-of-band" : "true",
+    "ipv4" : "true",
+    "ipv6" : "true",
+    "product-name" : "",
+    "serial-no" : ""
   }
 }
+```
+## 3.4 CLI commands
+The following CLI commands are used to manage ZTP operation:
+
+**config ztp enable**
+
+The command is used to administratively enable ZTP. When ZTP feature is included as a build option, ZTP service is configured to be enabled by default. 
+This command is used to re-enable ZTP after it has been disabled by user.
+
+```
+root@sonic:/home/admin# config ztp enable
+Running command: ztp enable
+```
+
+**config ztp disable**
+
+The command is used to stop and disable the ZTP service. If the ZTP service is in progress, it is aborted and ZTP status is set to disable in configuration file. 
+```
+root@sonic:/home/admin# config ztp disable
+Active ZTP session will be stopped and disabled, continue? [y/N]: y
+Running command: ztp disable -y
+```
+
+**config ztp run**
+
+Use this command to manually restart a new ZTP session.  This command deletes the existing */etc/sonic/config_db.json* file and starts ZTP service. It also erases the previous ZTP session data. The ZTP configuration is loaded on to the switch and ZTP discovery is performed. 
+
+```
+root@sonic:/home/admin# config ztp run
+ZTP will be restarted. You may lose switch data and connectivity, continue? [y/N]: y
+Running command: ztp run -y
+```
+
+**show ztp status**
+
+This command displays the current ZTP configuration of the switch. It also displays detailed information about current state of a ZTP session. 
+```
+root@sonic:/home/admin# show ztp status
+ZTP Admin Mode : True
+ZTP Service    : Inactive
+ZTP Status     : SUCCESS
+ZTP Source     : dhcp-opt67 (eth0)
+Runtime        : 05m 31s
+Timestamp      : 2019-09-11 19:12:24 UTC
+
+ZTP Service is not running
+
+01-configdb-json: SUCCESS
+02-connectivity-check: SUCCESS
 ```
