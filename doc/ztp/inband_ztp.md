@@ -69,10 +69,11 @@ First service to run is config-setup, it performs the following:
 ![config-setup](images/config-setup.svg)
 
 - Create the following files using sonic-cfggen:
-1. config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP and PORT
+1. config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP
 DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
 ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds ZTP defines (sub features admin state, helper files location, etc.).
 PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
+COPP_TRAP table data are the DHCP traps needed for ZTP SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 (more details at [3.1.4 SWSS COPP](#314-swss-copp))
 2. /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 related configuration (e.g. DUID:DHCP unique identifier type).
 
 - Run config reload to load the newly created config_db.json, then it stops ZTP process if running and delete ZTP json to prepare for a new ZTP session.
@@ -161,16 +162,16 @@ In the below example, there are 3 sections to process:
 3. Delete file ztp_dhcp.json and restart interfaces-config service. When ztp_dhcp.json does not exist, interfaces-config service will create dhclient.conf without request of ZTP options.
 
 ### 3.1.4 SWSS COPP
-To make DHCP packets arrive to CPU, need to register the following traps:
+For making DHCP packets arrive to CPU, need to register the following traps:
 - SAI_HOSTIF_TRAP_TYPE_DHCP_L2
 - SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2
 
-Service config-setup creates new config_db.json during init and performs config relaod to load it. We will add the following to this config_db.json:
+Service config-setup creates new config_db.json during init and performs config relaod to load it. The following will be added to this config_db.json:
 ```
 COPP_TRAP|dhcpl2
   always_enabled:true
 ```
-ZTP engine will delete this table from config DB when ZTP finishes its work.
+ZTP engine will delete this key from config DB when ZTP finishes its work.
 
 COPP manager listens to changes in COPP_TRAP table, therefore will handle and register the traps.
 When COPP manger handles changes in COPP_TRAP table it uses static data that is being read in init and kept in the cache, this data is generated from copp_cfg.j2.
@@ -182,8 +183,8 @@ We will add the following to copp_cfg.j2:
 },
 ```
 ```
-"queue4_group4": {
-  "trap_action":"trap",
+"queue4_group5": {
+  "trap_action":"copy",
   "trap_priority":"4",
   "queue": "4",
   "meter_type":"packets",
@@ -208,7 +209,7 @@ In this scenario, ztp-engine performs the following:
 2. Rest of the flow is as described in [3.1.3 ZTP service](#313-ztp-service)
 
 ## 3.3 config DB
-If ZTP is enabled, the following will be added to config DB at init and will be deleted once ZTP will finish to process all configuration sections in ZTP json.
+If ZTP is enabled, the following will be added to config DB at init and will be deleted once ZTP will finish to process all configuration sections in the ZTP json.
 ```
 "ZTP" : {
   "mode" : {
