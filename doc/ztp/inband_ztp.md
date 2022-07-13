@@ -39,8 +39,25 @@ This document describes the high level design of the in-band ZTP feature in SONi
 
 
 # 1 Overview
+## 1.1 ZTP overview
 When a newly deployed SONiC switch boots for the first time, it should allow automatic configuration of the switch without user intervention. This framework is called ZTP.
-ZTP allows switch that boots from factory default to communicate with remote provisioning server (DHCP server), download a file called ZTP json and perform the configuration tasks listed in it. Configuration tasks are defined with the corresponding plugin to be applied by ZTP service. Plugin can be config_db.json to apply, SW image to install or SNMP community string. ZTP allows to perform one or more configuration tasks. It also allow ordering of those tasks as defined in the ZTP json. DHCP option 67 (59 for DHCPv6) in the DHCP offer contains the url to the ZTP json.  ZTP service will download the ZTP json, process it and execute the configuration tasks listed in it. Alternitively, ZTP can download a simple provisioning script and execute it. DHCP option 239 (239 for DHCPv6) in the DHCP offer contains the url to the script.
+ZTP allows switch that boots from factory default to communicate with remote provisioning server (DHCP server), download a file called ZTP json and perform the configuration tasks listed in it. 
+
+Configuration tasks are defined with the corresponding plugin to be applied by ZTP service. Plugin can be config_db.json to apply, SW image to install or SNMP community string. ZTP allows to perform one or more configuration tasks. It also allow ordering of those tasks as defined in the ZTP json. 
+
+DHCP option 67 (59 for DHCPv6) in the DHCP offer contains the url to the ZTP json. ZTP service will download the ZTP json, process it and execute the configuration tasks listed in it. Alternitively, ZTP can download a simple provisioning script and execute it. DHCP option 239 (239 for DHCPv6) in the DHCP offer contains the url to the script. 
+ZTP can also download minigraph xml or ACL json used by updategraph service. DHCP option 225 and 226 in the DHCP offer contains the url for those. 
+
+The following CLI commands are used to manage ZTP service.
+| Command         | Description                              |
+|-----------------|------------------------------------------|
+| ztp enable      | enable ZTP service                       |
+| ztp disable     | stop and disable ZTP service             |
+| ztp run         | manually restart a new ZTP session.      |
+| show ztp status | displays the current ZTP configuration   |
+
+## 1.2 In-band ZTP overview
+When using in-band ZTP switch will communicate with remote provisioning server using the high-speed interfaces allowing the user to provision the switch using the in-band network in adition to the out-of-band network.
 
 # 2 Requirements
 
@@ -101,7 +118,7 @@ ZTP service perform the following:
 
 - Run discovery, in discovery method we check if we got one of the DHCP options from DHCP server.
 - In the first call to discovery we expect nothing since we didnt kickstart DHCP on the inband interfaces yet.
-- Wait for in-band interfaces to be created (by read interfaces from config DB and poll for existance of /sys/class/net/${PORT}), then check for oper state change in one on of the in-band interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all in-band interfaces.
+- Wait for in-band interfaces to be created (by reading interfaces names from config DB and poll for existance of /sys/class/net/${PORT with timeout of 120 seconds), then check for oper state change (read PORT_TABLE in app DB and compare to local cache) in one on of the interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all interfaces.
 - DHCP process starts, DHCP hooks will be called.
 - DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
 - DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
