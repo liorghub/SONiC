@@ -101,7 +101,7 @@ ZTP service perform the following:
 - Run discovery, in discovery method we check if we got one of the DHCP options from DHCP server.
 - In the first call to discovery we expect nothing since we didnt kickstart DHCP on the inband interfaces yet.
 - Wait for in-band interfaces to be created (by read interfaces from config DB and poll for existance of /sys/class/net/${PORT}), then check for oper state change in one on of the in-band interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all in-band interfaces.
-- DHCP process starts, DHCP hooks will be called
+- DHCP process starts, DHCP hooks will be called.
 - DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
 - DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
 - Run discovery, this time we expect to find one of the options. This is the the order of precedence:
@@ -117,7 +117,6 @@ ZTP service perform the following:
 2. firmware - this plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic_installer utility is used by this plugin to perform the supported functions.
 3. connectivity-check - this plugin is used to ping a remote host and verify if the switch is able to reach the remote host.
 4. snmp - this plugin is used to configure SNMP community string on SONiC switch.
-5. graphservice: the plugin is used to provide minigraph xml and ACL json file to be used by SONiC switch.
 
 In the below example, there are 3 sections to process:
 ```
