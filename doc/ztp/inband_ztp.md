@@ -68,13 +68,13 @@ First service to run is config-setup, it performs the following:
 
 ![config-setup](images/config-setup.svg)
 
-- Create the following files using sonic-cfggen:
-1. config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP
+- If config_db.json file does not exist, create the following files using sonic-cfggen:
+1. config_db.json (using ztp-config.j2) with 4 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP
 * DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
-* ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds ZTP defines (sub features admin state, helper files location, etc.).
+* ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds all ZTP defines (sub features admin state, helper files location, etc.).
 * PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
 * COPP_TRAP table data are the DHCP traps needed for ZTP SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 (more details at [3.1.4 SWSS COPP](#314-swss-copp))
-2. /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 related configuration (e.g. DUID:DHCP unique identifier type).
+2. /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 unique identifier type for each interface, we use LL (link-layer address).
 
 - Run config reload to load the newly created config_db.json, stop ZTP process if running and delete ZTP json to prepare for a new ZTP session.
 
@@ -87,10 +87,11 @@ Check if file ztp_dhcp.json exist, if so:
 - Read interfaces data from PORT_TABLE in app DB (alias, speed, oper_status etc.)
 - Use sonic-cfggen to create the following files (use interface data as data source):
 1. /etc/network/interfaces file (using interfaces.j2). This file contains network interface configuration like static IP address, network netmask, DHCP enable etc.
-2. /etc/dhcp/dhclient.conf file (using dhclient.conf.j2). This file defines the DHCP information provided to the client by the server (DHCP options and requests).
-3. /etc/sysctl.d/90-dhcp6-systcl.conf (using 90-dhcp6-systcl.conf.j2). This file contains DHCPv6 related configuration, accept_ra (accept router advertisements) and accept_ra_defrtr (learn default router in router advertisement).
+2. /etc/dhcp/dhclient.conf file (using dhclient.conf.j2). This file defines the DHCP information provided to the client by the server (DHCP ZTP options and requests).
+3. /etc/sysctl.d/90-dhcp6-systcl.conf (using 90-dhcp6-systcl.conf.j2). This file contains DHCPv6 related configuration for eth0 only, accept_ra (accept router advertisements) and accept_ra_defrtr (learn default router in router advertisement).
 - Restart networking service, this will start DHCP discovery on the managment interface (at this phase, in-band interfaces still not created).
 
+If ztp_dhcp.json does not exist, it means ZTP is disabled, so create same files mentioned above but without the request for DHCP ZTP options.
 
 ### 3.1.3 ZTP service
 ZTP service perform the following:
@@ -98,12 +99,12 @@ ZTP service perform the following:
 ![ztp-engine](images/ztp-engine.svg)
 
 - Run discovery method in which we determine ZTP mode. Whether we work with local ZTP json, remote ZTP json, simple provisioning script or updategraph. See below order of precedence:
-1. ZTP json file specified in pre-defined location as part of the image
-2. ZTP json file downloaded using URL specified in DHCP Option-67
-3. ZTP json file downloaded using URL specified in DHCPv6 Option-59
-4. Simple provisioning script downloaded using URL specified in DHCP Option-239
-5. Simple provisioning script downloaded using URL specified in DHCPv6 Option-239
-6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively
+1. ZTP json file exist as part of the SW image.
+2. ZTP json file downloaded using URL specified in DHCP Option-67.
+3. ZTP json file downloaded using URL specified in DHCPv6 Option-59.
+4. Simple provisioning script downloaded using URL specified in DHCP Option-239.
+5. Simple provisioning script downloaded using URL specified in DHCPv6 Option-239.
+6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively.
 
 For each option mentioned above, there is a predefined path to a file on the filesystem. When the correspnding option will arrive in the DHCP packet, we will parse it and write to this file.
 We determine ZTP mode by checking if the file exist, if it does, we read the URL from it, downloading the ZTP json or the provisioning script and skip all other options.
