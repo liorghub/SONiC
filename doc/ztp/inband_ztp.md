@@ -25,7 +25,7 @@
 # Revision
 | Rev | Date     | Author          | Change Description                 |
 |:---:|:--------:|:---------------:|------------------------------------|
-| 0.1 | 03/07/22 | Lior Avramov    | Initial version                    |
+| 0.1 | 13/07/22 | Lior Avramov    | Initial version                    |
 
 # Scope
 This document describes the high level design of the in-band ZTP feature in SONiC.
@@ -52,8 +52,8 @@ In-band ZTP should meet the following requirements:
 
 ## 2.2 Configuration and management requirements
 - Provisioning over in-band network is enabled by default when the ZTP package is included.
-- There is no CLI command to disable in-band ZTP, however, user can add "feat-inband" : false in /host/ztp/ztp_cfg.json to disable in-band ZTP.
-- DHCP_L2 and DHCPV6_L2 traps should be enabled for in-band ZTP.
+- By default in-band ZTP is enabled, user can disable it by adding "feat-inband" : false to /host/ztp/ztp_cfg.json.
+- In-band ZTP requires registration of 2 new traps, SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 traps. Traps should be enabled when ZTP starts and disabled when ZTP finishes.
 
 # 3 Modules design
 
@@ -64,12 +64,13 @@ Services config-setup and interface-config perform the groundwork for ZTP servic
 ## 3.1 ZTP provision over in-band network on init
 
 ### 3.1.1 config-setup service
-First service to run is config-setup, it performs the following:
+During init, systemd runs config-setup service that performs the following:
 
 ![config-setup](images/config-setup.svg)
 
-- If config_db.json file does not exist, create the following files using sonic-cfggen:
-1. config_db.json (using ztp-config.j2) with 4 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP
+- Check whether config_db.json exists, if yes, nothing to do in terms of ZTP, exit.
+- Else, create the following files using sonic-cfggen:
+1. config_db.json (using ztp-config.j2) with 4 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP.
 * DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
 * ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds all ZTP defines (sub features admin state, helper files location, etc.).
 * PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
@@ -98,7 +99,13 @@ ZTP service perform the following:
 
 ![ztp-engine](images/ztp-engine.svg)
 
-- Run discovery method in which we determine ZTP mode. Whether we work with local ZTP json, remote ZTP json, simple provisioning script or updategraph. See below order of precedence:
+- Run discovery, in discovery method we check if we got one of the DHCP options from DHCP server.
+- In the first call to discovery we expect nothing since we didnt kickstart DHCP on the inband interfaces yet.
+- Wait for in-band interfaces to be created (by read interfaces from config DB and poll for existance of /sys/class/net/${PORT}), then check for oper state change in one on of the in-band interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all in-band interfaces.
+- DHCP process starts, DHCP hooks will be called
+- DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
+- DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
+- Run discovery, this time we expect to find one of the options. This is the the order of precedence:
 1. ZTP json file exist as part of the SW image.
 2. ZTP json file downloaded using URL specified in DHCP Option-67.
 3. ZTP json file downloaded using URL specified in DHCPv6 Option-59.
@@ -106,17 +113,8 @@ ZTP service perform the following:
 5. Simple provisioning script downloaded using URL specified in DHCPv6 Option-239.
 6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively.
 
-For each option mentioned above, there is a predefined path to a file on the filesystem. When the correspnding option will arrive in the DHCP packet, we will parse it and write to this file.
-We determine ZTP mode by checking if the file exist, if it does, we read the URL from it, downloading the ZTP json or the provisioning script and skip all other options.
-
-- If none of the files exist (discovery failed), wait for in-band interfaces to be created (read interfaces from config DB and poll for existance of /sys/class/net/${PORT}), then check for oper state change in one on of the in-band interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all in-band interfaces.
-- In the case where discovery failed and no link up detected, we keep a timer to restart interfaces-config service periodically every 300 seconds.
-- DHCP process starts, server sends offer, client sends request, server sends ack with the IP address and the required DHCP option.
-- DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
-- Another hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
-- Go back to discovery mode, this time, one of the files will exist and ZTP json file will be downloaded.
 - Process the configuration sections appear in ZTP json. Each section contains plugin to execute. There are several plugin types:
-1. configdb-json - the plugin is used to download ConfigDB json file and apply the configuration. A config reload is performed during which various SWSS services may restart.
+1. configdb-json - the plugin is used to download config DB json file and apply it. A config reload is performed during which various SWSS services may restart.
 2. firmware - this plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic_installer utility is used by this plugin to perform the supported functions.
 3. connectivity-check - this plugin is used to ping a remote host and verify if the switch is able to reach the remote host.
 4. snmp - this plugin is used to configure SNMP community string on SONiC switch.
@@ -157,9 +155,9 @@ In the below example, there are 3 sections to process:
 	}
 }
 ```
-- Last step is to clear ZTP configuration from the switch, we do the following:
-1. Clear ZTP section from config DB using sonic-db-cli.
-2. Clear ZTP section from config_db.json.
+- Last step is to clear ZTP configuration from the switch:
+1. Clear ZTP and COPP from config DB using sonic-db-cli.
+2. Clear ZTP and COPP from config_db.json.
 3. Delete file ztp_dhcp.json and restart interfaces-config service. When ztp_dhcp.json does not exist, interfaces-config service will create dhclient.conf without request of ZTP options.
 
 ### 3.1.4 SWSS COPP
