@@ -70,13 +70,13 @@ First service to run is config-setup, it performs the following:
 
 - Create the following files using sonic-cfggen:
 1. config_db.json (using ztp-config.j2) with 3 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP
-DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
-ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds ZTP defines (sub features admin state, helper files location, etc.).
-PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
-COPP_TRAP table data are the DHCP traps needed for ZTP SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 (more details at [3.1.4 SWSS COPP](#314-swss-copp))
+* DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
+* ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds ZTP defines (sub features admin state, helper files location, etc.).
+* PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
+* COPP_TRAP table data are the DHCP traps needed for ZTP SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 (more details at [3.1.4 SWSS COPP](#314-swss-copp))
 2. /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 related configuration (e.g. DUID:DHCP unique identifier type).
 
-- Run config reload to load the newly created config_db.json, then it stops ZTP process if running and delete ZTP json to prepare for a new ZTP session.
+- Run config reload to load the newly created config_db.json, stop ZTP process if running and delete ZTP json to prepare for a new ZTP session.
 
 ### 3.1.2 interfaces-config service
 After config reload, service interfaces-config runs and perfrom the following:
