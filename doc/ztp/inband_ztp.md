@@ -26,7 +26,7 @@
 # Revision
 | Rev | Date     | Author          | Change Description                 |
 |:---:|:--------:|:---------------:|------------------------------------|
-| 0.1 | 13/07/22 | Lior Avramov    | Initial version                    |
+| 0.1 | 14/07/22 | Lior Avramov    | Initial version                    |
 
 # Scope
 This document describes the high level design of the in-band ZTP feature in SONiC.
