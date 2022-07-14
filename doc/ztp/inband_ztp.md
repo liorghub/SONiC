@@ -68,15 +68,15 @@ In-band ZTP should meet the following requirements:
 - The first interface to provide provisioning data will be used and any provisioning data provided by other interfaces is ignored.
 
 ## 2.2 Configuration and management requirements
-- Provisioning over in-band network is enabled by default when the ZTP package is included.
-- By default in-band ZTP is enabled, user can disable it by adding "feat-inband" : false to /host/ztp/ztp_cfg.json.
-- In-band ZTP requires registration of 2 new traps, SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 traps. Traps should be enabled when ZTP starts and disabled when ZTP finishes.
+- In-band ZTP is enabled by default when the ZTP package is included.
+- User can disable in-band ZTP by adding "feat-inband" : false to /host/ztp/ztp_cfg.json.
+- In-band ZTP requires registration of 2 new traps, SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 traps. Traps should be enabled when ZTP starts and disabled when it finishes.
 
 # 3 Modules design
 
 ![In-band ZTP modules](images/modules-design.svg)
 
-Service config-setup creates ZTP configuration, interface-config create DHCP configuration, SWSS registers the required traps and then ZTP is doing the work.
+Service config-setup creates ZTP configuration, interface-config is in charge of DHCP, SWSS registers the required traps and then ZTP is doing the work.
 More details on each service in the following chapters.
 
 ## 3.1 ZTP provision over in-band network on init
@@ -90,25 +90,25 @@ During init, systemd runs config-setup service that performs the following:
 - Else, create the following files using sonic-cfggen:
 1. config_db.json (using ztp-config.j2) with 4 tables: DEVICE_METADATA, ZTP, PORT and COPP_TRAP.
 * DEVICE_METADATA table data (product name, serial number) are being read using decode-syseeprom command.
-* ZTP table data (ZTP_INBAND, ZTP_IPV4, ZTP_IPV6) are being read from file called defaults.py, this file holds all ZTP defines (sub features admin state, helper files location, etc.).
-* PORT table data (alias, lanes, admin_status etc.) are being read from platfrom.json by HWSKU (if ZTP_INBAND is disabled, ports admin state is set to down).
-* COPP_TRAP table data are the DHCP traps needed for ZTP SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 (more details at [3.1.4 SWSS COPP](#314-swss-copp))
+* PORT table data (alias, lanes, speed, admin status and mtu) are being read from platfrom.json according to the hwsku (if in-band ZTP is disabled, ports admin state will be set to down).
+* ZTP table data (admin state of in-band ZTP, ipv4 ZTP and ipv6 ZTP) are being read from file called defaults.py, this file holds all ZTP defines (sub features admin state, helper files location, etc.).
+* COPP_TRAP table data are the DHCP traps required for in-band ZTP. Those are SAI_HOSTIF_TRAP_TYPE_DHCP_L2 and SAI_HOSTIF_TRAP_TYPE_DHCPV6_L2 (more details at [3.1.4 SWSS COPP](#314-swss-copp))
 2. /etc/network/ifupdown2/policy.d/ztp_dhcp.json (using ifupdown2_dhcp_policy.j2): this file contains DHCPv6 unique identifier type for each interface, we use LL (link-layer address).
 
-- Run config reload to load the newly created config_db.json, stop ZTP process if running and delete ZTP json to prepare for a new ZTP session.
+- Run config reload to load the newly created config_db.json, and if ZTP is enabled, stop the service and delete ZTP json to prepare for a new session.
 
 ### 3.1.2 interfaces-config service
-After config reload, during init, systemd runs service interfaces-config runs and perfrom the following:
+After config reload, during init, systemd runs service interfaces-config. It perfrom the following:
 
 ![interfaces-config](images/interfaces-config.svg)
 
-Check if file ztp_dhcp.json exist, if so:
-- Read interfaces data from PORT_TABLE in app DB (alias, speed, oper_status etc.)
+Check if file ztp_dhcp.json exist, if yes:
+- Read interfaces data from PORT_TABLE in app DB (admin_status, alias, lanes, mtu, oper_status and speed)
 - Use sonic-cfggen to create the following files (use interface data as data source):
-1. /etc/network/interfaces file (using interfaces.j2). This file contains network interface configuration like static IP address, network netmask, DHCP enable etc.
+1. /etc/network/interfaces file (using interfaces.j2). This file contains the interfaces network configuration like IP address, network netmask, DHCP enable etc.
 2. /etc/dhcp/dhclient.conf file (using dhclient.conf.j2). This file defines the DHCP information provided to the client by the server (DHCP ZTP options and requests).
-3. /etc/sysctl.d/90-dhcp6-systcl.conf (using 90-dhcp6-systcl.conf.j2). This file contains DHCPv6 related configuration for eth0 only, accept_ra (accept router advertisements) and accept_ra_defrtr (learn default router in router advertisement).
-- Restart networking service, this will start DHCP discovery on the managment interface (at this phase, in-band interfaces still not created).
+3. /etc/sysctl.d/90-dhcp6-systcl.conf (using 90-dhcp6-systcl.conf.j2). This file contains DHCPv6 related configuration for the mgmt. interface only, accept_ra (accept router advertisements) and accept_ra_defrtr (learn default router in router advertisement).
+- Restart networking service, this will start DHCP discovery on the managment interface only (at this phase, SWSS did not create the interfaces yet).
 
 If ztp_dhcp.json does not exist, it means ZTP is disabled, so create same files mentioned above but without the request for DHCP ZTP options.
 
