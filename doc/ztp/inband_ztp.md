@@ -123,8 +123,8 @@ Systemd runs ZTP service after interfaces-config. ZTP performs the following:
 - Read oper state of all in-band interfaces (read PORT_TABLE in app DB) and if there is a link up change, perform restart to interfaces-config service, this will start DHCP discovery on all interfaces.
 - DHCP process starts.
 - DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
-- DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
-- Run discovery, this time we expect to find one of the options. This is the the order of precedence:
+- DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp parses the option and writes it to a file in the filesystem.
+- Run discovery again, this time we expect that one of the options was parsed, we read the url and download the ZTP json. This is the the order of precedence:
 1. ZTP json file exist as part of the SW image.
 2. Download ZTP json specified in DHCP Option-67.
 3. Download ZTP json specified in DHCPv6 Option-59.
