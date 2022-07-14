@@ -76,7 +76,8 @@ In-band ZTP should meet the following requirements:
 
 ![In-band ZTP modules](images/modules-design.svg)
 
-Services config-setup and interface-config perform the groundwork for ZTP service and copp manager in SWSS is registering the required trap.
+Service config-setup creates ZTP configuration, interface-config create DHCP configuration, SWSS registers the required traps and then ZTP is doing the work.
+More details on each service in the following chapters.
 
 ## 3.1 ZTP provision over in-band network on init
 
@@ -97,7 +98,7 @@ During init, systemd runs config-setup service that performs the following:
 - Run config reload to load the newly created config_db.json, stop ZTP process if running and delete ZTP json to prepare for a new ZTP session.
 
 ### 3.1.2 interfaces-config service
-After config reload, service interfaces-config runs and perfrom the following:
+After config reload, during init, systemd runs service interfaces-config runs and perfrom the following:
 
 ![interfaces-config](images/interfaces-config.svg)
 
@@ -112,7 +113,7 @@ Check if file ztp_dhcp.json exist, if so:
 If ztp_dhcp.json does not exist, it means ZTP is disabled, so create same files mentioned above but without the request for DHCP ZTP options.
 
 ### 3.1.3 ZTP service
-ZTP service perform the following:
+Systemd then runs ZTP service that perform the following:
 
 ![ztp-engine](images/ztp-engine.svg)
 
@@ -130,12 +131,12 @@ ZTP service perform the following:
 5. Simple provisioning script downloaded using URL specified in DHCPv6 Option-239.
 6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively.
 
-- Process the configuration sections appear in ZTP json. Each section contains plugin to execute. There are several types of plugins:
+- Process the configuration sections appear in ZTP json (/host/ztp/ztp_data.json). Each section contains plugin to execute. There are several types of plugins:
 1. configdb-json - the plugin is used to download config DB json file and apply it. A config reload is performed during which various SWSS services may restart.
 2. firmware - this plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic_installer utility is used by this plugin to perform the supported functions.
 3. connectivity-check - this plugin is used to ping a remote host and verify if the switch is able to reach the remote host.
 4. snmp - this plugin is used to configure SNMP community string on SONiC switch.
-5. script - this plugin is used to simply run a user script.
+5. script - this plugin is used to run a user script.
 
 In the below example, there are 3 sections to process:
 ```
@@ -240,51 +241,4 @@ When ZTP is enabled, the following will be added to config DB at init and will b
 }
 ```
 ## 3.4 CLI commands
-The following CLI commands are used to manage ZTP operation:
-
-**config ztp enable**
-
-The command is used to administratively enable ZTP. When ZTP feature is included as a build option, ZTP service is configured to be enabled by default. 
-This command is used to re-enable ZTP after it has been disabled by user.
-
-```
-root@sonic:/home/admin# config ztp enable
-Running command: ztp enable
-```
-
-**config ztp disable**
-
-The command is used to stop and disable the ZTP service. If the ZTP service is in progress, it is aborted and ZTP status is set to disable in configuration file. 
-```
-root@sonic:/home/admin# config ztp disable
-Active ZTP session will be stopped and disabled, continue? [y/N]: y
-Running command: ztp disable -y
-```
-
-**config ztp run**
-
-Use this command to manually restart a new ZTP session.  This command deletes the existing */etc/sonic/config_db.json* file and starts ZTP service. It also erases the previous ZTP session data. The ZTP configuration is loaded on to the switch and ZTP discovery is performed. 
-
-```
-root@sonic:/home/admin# config ztp run
-ZTP will be restarted. You may lose switch data and connectivity, continue? [y/N]: y
-Running command: ztp run -y
-```
-
-**show ztp status**
-
-This command displays the current ZTP configuration of the switch. It also displays detailed information about current state of a ZTP session. 
-```
-root@sonic:/home/admin# show ztp status
-ZTP Admin Mode : True
-ZTP Service    : Inactive
-ZTP Status     : SUCCESS
-ZTP Source     : dhcp-opt67 (eth0)
-Runtime        : 05m 31s
-Timestamp      : 2019-09-11 19:12:24 UTC
-
-ZTP Service is not running
-
-01-configdb-json: SUCCESS
-02-connectivity-check: SUCCESS
-```
+CLI commands definition and examples can be found in ZTP HLD https://github.com/sonic-net/SONiC/blob/master/doc/ztp/ztp.md#6-configuring-ztp
