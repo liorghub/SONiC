@@ -113,29 +113,30 @@ Check if file ztp_dhcp.json exist, if yes:
 If ztp_dhcp.json does not exist, it means ZTP is disabled, so create same files mentioned above but without the request for DHCP ZTP options.
 
 ### 3.1.3 ZTP service
-Systemd then runs ZTP service that perform the following:
+Systemd runs ZTP service after interfaces-config. ZTP performs the following:
 
 ![ztp-engine](images/ztp-engine.svg)
 
 - Run discovery, in discovery method we check if we got one of the DHCP options from DHCP server.
 - In the first call to discovery we expect nothing since we didnt kickstart DHCP on the inband interfaces yet.
-- Wait for in-band interfaces to be created (by reading interfaces names from config DB and poll for existance of /sys/class/net/${PORT with timeout of 120 seconds), then check for oper state change (read PORT_TABLE in app DB and compare to local cache) in one on of the interfaces and if there is such, perform restart to interfaces-config service, this will start DHCP discovery on all interfaces.
-- DHCP process starts, DHCP hooks will be called.
+- Wait for in-band interfaces to be created (by reading interfaces names from config DB and poll for existance of /sys/class/net/${PORT}, we do it with timeout of 120 seconds.
+- Get oper-state of the in-band interfaces (read PORT_TABLE in app DB) and if one of the interfaces is up, perform restart to interfaces-config service, this will start DHCP discovery on all interfaces.
+- DHCP process starts.
 - DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
 - DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
 - Run discovery, this time we expect to find one of the options. This is the the order of precedence:
 1. ZTP json file exist as part of the SW image.
-2. ZTP json file downloaded using URL specified in DHCP Option-67.
-3. ZTP json file downloaded using URL specified in DHCPv6 Option-59.
-4. Simple provisioning script downloaded using URL specified in DHCP Option-239.
-5. Simple provisioning script downloaded using URL specified in DHCPv6 Option-239.
-6. Minigraph xml and ACL json downloaded using URL specified in DHCP Option 225 and 226 respectively.
+2. Download ZTP json specified in DHCP Option-67.
+3. Download ZTP json specified in DHCPv6 Option-59.
+4. Download simple provisioning script specified in DHCP Option-239.
+5. Download simple provisioning script specified in DHCPv6 Option-239.
+6. Download Minigraph xml and ACL json specified in DHCP Options 225 and 226.
 
 - Process the configuration sections appear in ZTP json (/host/ztp/ztp_data.json). Each section contains plugin to execute. There are several types of plugins:
 1. configdb-json - the plugin is used to download config DB json file and apply it. A config reload is performed during which various SWSS services may restart.
 2. firmware - this plugin is used for image management on a switch. It can be used to install, remove and boot selection of images. sonic_installer utility is used by this plugin to perform the supported functions.
 3. connectivity-check - this plugin is used to ping a remote host and verify if the switch is able to reach the remote host.
-4. snmp - this plugin is used to configure SNMP community string on SONiC switch.
+4. snmp - this plugin is used to configure SNMP community string on.
 5. script - this plugin is used to run a user script.
 
 In the below example, there are 3 sections to process:
@@ -174,8 +175,8 @@ In the below example, there are 3 sections to process:
 }
 ```
 - Last step is to clear ZTP configuration from the switch:
-1. Clear ZTP and COPP from config DB using sonic-db-cli.
-2. Clear ZTP and COPP from config_db.json.
+1. Clear ZTP and COPP tables from config DB using sonic-db-cli.
+2. Clear ZTP and COPP tables from config_db.json.
 3. Delete file ztp_dhcp.json and restart interfaces-config service. When ztp_dhcp.json does not exist, interfaces-config service will create dhclient.conf without request of ZTP options.
 
 ### 3.1.4 SWSS COPP
@@ -185,14 +186,15 @@ For making DHCP packets arrive to CPU, need to register the following traps:
 
 Service config-setup creates new config_db.json during init and performs config relaod to load it. The following will be added to this config_db.json:
 ```
-COPP_TRAP|dhcpl2
+COPP_TRAP|l2dhcp
   always_enabled:true
 ```
 ZTP engine will delete this key from config DB when ZTP finishes its work.
 
 COPP manager listens to changes in COPP_TRAP table, therefore will handle and register the traps.
-When COPP manger handles changes in COPP_TRAP table it uses static data that is being read in init and kept in the cache, this data is generated from copp_cfg.j2.
-We will add the following to copp_cfg.j2:
+When COPP manger handles changes in COPP_TRAP table it uses data being read in init and kept in the cache, this data is generated from copp_cfg.j2.
+
+Following will be added to copp_cfg.j2:
 ```
 "l2dhcp": {
   "trap_ids": "l2dhcp,l2dhcpv6",
