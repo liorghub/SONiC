@@ -120,7 +120,7 @@ Systemd runs ZTP service after interfaces-config. ZTP performs the following:
 - Run discovery, in discovery method we check if we got one of the DHCP options from DHCP server.
 - In the first call to discovery we expect nothing since we didnt kickstart DHCP on the inband interfaces yet.
 - Wait for in-band interfaces to be created (by reading interfaces names from config DB and poll for existance of /sys/class/net/${PORT}, we do it with timeout of 120 seconds.
-- Get oper-state of the in-band interfaces (read PORT_TABLE in app DB) and if one of the interfaces is up, perform restart to interfaces-config service, this will start DHCP discovery on all interfaces.
+- Read oper state of all in-band interfaces (read PORT_TABLE in app DB) and if one of the interfaces is up, perform restart to interfaces-config service, this will start DHCP discovery on all interfaces.
 - DHCP process starts.
 - DHCP hook /etc/dhcp/dhclient-enter-hooks.d/inband-ztp-ip sets the offered IP address on the in-band interface.
 - DHCP hook /etc/dhcp/dhclient-exit-hooks.d/ztp reads the received option and write it to a file in predefined location on the filesystem.
